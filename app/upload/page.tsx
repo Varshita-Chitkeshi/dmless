@@ -1,95 +1,87 @@
 "use client";
 
 import { useState } from "react";
-import { db, storage } from "../firebase";
-import { collection, addDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useRouter } from "next/navigation";
+import { db, storage } from "../firebase";
+
+import { collection, addDoc, Timestamp } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 export default function UploadPage() {
+  const router = useRouter();
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!file) return alert("Please upload resume");
-
-    setLoading(true);
+  const handleUpload = async () => {
+    if (!name || !email || !file) {
+      alert("All fields required");
+      return;
+    }
 
     try {
-      // 1️⃣ Upload resume
-      const storageRef = ref(storage, `resumes/${Date.now()}-${file.name}`);
-      await uploadBytes(storageRef, file);
-      const resumeUrl = await getDownloadURL(storageRef);
+      setLoading(true);
 
-      // 2️⃣ Save to Firestore
-      await addDoc(collection(db, "applications"), {
+      // 🔹 1. upload resume to Firebase Storage
+      const storageRef = ref(
+        storage,
+        `resumes/${Date.now()}-${file.name}`
+      );
+
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // 🔹 2. save data in Firestore
+      await addDoc(collection(db, "resumes"), {
         name,
         email,
-        resumeUrl,
-        createdAt: new Date(),
+        resumeUrl: downloadURL,
+        createdAt: Timestamp.now(),
       });
 
-      // 3️⃣ Redirect
-      router.push("/success");
-    } catch (err) {
-      console.error(err);
-      alert("Upload failed");
+      alert("Resume uploaded successfully ✅");
+      router.push("/thank-you"); // optional
+
+    } catch (error) {
+      console.error(error);
+      alert("Upload failed ❌");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={styles.container}>
-      <h1>Apply Now</h1>
+    <div style={{ padding: "40px", maxWidth: "500px" }}>
+      <h2>Resume Upload</h2>
 
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <input
-          placeholder="Full Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
+      <input
+        type="text"
+        placeholder="Name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        style={{ width: "100%", marginBottom: "10px" }}
+      />
 
-        <input
-          placeholder="Email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+      <input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        style={{ width: "100%", marginBottom: "10px" }}
+      />
 
-        <input
-          type="file"
-          accept=".pdf"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-          required
-        />
+      <input
+        type="file"
+        accept=".pdf,.doc,.docx"
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
+        style={{ width: "100%", marginBottom: "20px" }}
+      />
 
-        <button disabled={loading}>
-          {loading ? "Uploading..." : "Submit"}
-        </button>
-      </form>
+      <button onClick={handleUpload} disabled={loading}>
+        {loading ? "Uploading..." : "Upload Resume"}
+      </button>
     </div>
   );
 }
-
-const styles = {
-  container: {
-    minHeight: "100vh",
-    display: "flex",
-    flexDirection: "column" as const,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  form: {
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "12px",
-    width: "300px",
-  },
-};
