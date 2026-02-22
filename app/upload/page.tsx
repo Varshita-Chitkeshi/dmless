@@ -1,87 +1,85 @@
 "use client";
 
 import { useState } from "react";
+import { db } from "../firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
-import { db, storage } from "../firebase";
-
-import { collection, addDoc, Timestamp } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 export default function UploadPage() {
   const router = useRouter();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [resumeLink, setResumeLink] = useState("");
 
-  const handleUpload = async () => {
-    if (!name || !email || !file) {
-      alert("All fields required");
+  const [q1, setQ1] = useState("");
+  const [q2, setQ2] = useState("");
+
+  const correct = q1 === "react" && q2 === "firebase";
+
+  const handleSubmit = async () => {
+    if (!correct) {
+      alert("All MCQs must be correct to upload resume");
       return;
     }
 
-    try {
-      setLoading(true);
-
-      // 🔹 1. upload resume to Firebase Storage
-      const storageRef = ref(
-        storage,
-        `resumes/${Date.now()}-${file.name}`
-      );
-
-      await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(storageRef);
-
-      // 🔹 2. save data in Firestore
-      await addDoc(collection(db, "resumes"), {
-        name,
-        email,
-        resumeUrl: downloadURL,
-        createdAt: Timestamp.now(),
-      });
-
-      alert("Resume uploaded successfully ✅");
-      router.push("/thank-you"); // optional
-
-    } catch (error) {
-      console.error(error);
-      alert("Upload failed ❌");
-    } finally {
-      setLoading(false);
+    if (!resumeLink) {
+      alert("Please paste resume link");
+      return;
     }
+
+    await addDoc(collection(db, "resumes"), {
+      name,
+      email,
+      resumeLink,
+      createdAt: serverTimestamp(),
+    });
+
+    alert("Resume submitted successfully!");
+    router.push("/");
   };
 
   return (
-    <div style={{ padding: "40px", maxWidth: "500px" }}>
+    <main style={{ padding: 30 }}>
       <h2>Resume Upload</h2>
 
       <input
-        type="text"
-        placeholder="Name"
+        placeholder="Full Name"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        style={{ width: "100%", marginBottom: "10px" }}
       />
+      <br /><br />
 
       <input
-        type="email"
         placeholder="Email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        style={{ width: "100%", marginBottom: "10px" }}
       />
+      <br /><br />
+
+      <h4>MCQs (must be correct)</h4>
+
+      <p>1️⃣ React is a ___ library?</p>
+      <input value={q1} onChange={(e) => setQ1(e.target.value)} />
+
+      <p>2️⃣ Firebase is a ___ platform?</p>
+      <input value={q2} onChange={(e) => setQ2(e.target.value)} />
+
+      <br /><br />
 
       <input
-        type="file"
-        accept=".pdf,.doc,.docx"
-        onChange={(e) => setFile(e.target.files?.[0] || null)}
-        style={{ width: "100%", marginBottom: "20px" }}
+        placeholder="Paste Resume Link (Google Drive / Dropbox)"
+        value={resumeLink}
+        onChange={(e) => setResumeLink(e.target.value)}
       />
 
-      <button onClick={handleUpload} disabled={loading}>
-        {loading ? "Uploading..." : "Upload Resume"}
+      <br /><br />
+
+      <button onClick={handleSubmit} disabled={!correct}>
+        Submit Resume
       </button>
-    </div>
+
+      {!correct && <p style={{ color: "red" }}>Answer all MCQs correctly</p>}
+    </main>
   );
 }
